@@ -170,9 +170,9 @@ def language_metrics(dp_answer, answer, question, text):
     Get scores for METEOR, BLEU, ROUGE-L metrics
     All metrics are done for lemmatized strings.
     For pairs reference-hypothesis:
-    deeppavlov answer - GPT answer,
-    question - GPT answer,
-    text - GPT answer,
+    deeppavlov answer - generated answer,
+    question - generated answer,
+    text - generated answer,
     text - question    
     """
     def get_meteor(ref, hyp):

@@ -27,7 +27,7 @@ S3_PREFIX = 'general_fasttext_2018'
 
 
 class TextQA(dict):
-    """summary (text of Wikipedia summary), GPT question, GPT answer, deeppavlov answer"""
+    """summary (text of Wikipedia summary), generated question, generated answer, deeppavlov answer"""
 
     def __init__(self, summary: str, question: str, answer: str, dp_answer: str):
         dict.__init__(self, summary=summary, question=question, answer=answer, dp_answer=dp_answer)
@@ -107,32 +107,9 @@ class HeuristicsFilter(RulebasedFilter):
     def is_filter(self) -> bool:
         return True
 
-    def get_gpt_qa(self, docs: Iterable[str])-> pd.DataFrame:
-        """
-        Takes list of texts (Wikipedia summaries).
-        Returns pandas dataframe with 'summary', 'question', 'answer' columns
-        There are max three QA-pairs for every text
-        """
-        #TODO: ADD REQUIREMENTS FOR GPT3XL, ADD IMPORTS AND DOWNLOADS
-        summaries, got_questions, got_answers = ([] for i in range(3))
-        for doc in docs:
-            try:
-                beam = tm.generate(text="[TEXT] " + doc + " [QUESTION]", max_length=1048, num_beams=7, no_repeat_ngram_size=3, repetition_penalty=2., num_return_sequences=3)
-                for option in beam:
-                    summaries.append(doc)
-                    text_split = option.split('[QUESTION]')                     
-                    q_and_a_split = text_split[1].split('[ANSWER]')
-                    got_questions.append(q_and_a_split[0][1:-1])
-                    answer_split = q_and_a_split[1].split('<|endoftext|>')
-                    got_answers.append(answer_split[0][1:-1])
-            except TypeError:
-                continue
-        qa_df = pd.DataFrame(list(zip(summaries, got_questions, got_answers)), columns=['summary','question', 'answer'])  
-        return qa_df
-
     def get_dp_answer(self, qa_df)-> pd.DataFrame:
         """
-        Takes pandas dataframe with 'summary', 'question', 'answer' columns (for GPT).
+        Takes pandas dataframe with 'summary', 'question', 'answer' columns.
         Returns pandas dataframe with added 'dp_answer' and 'dp_score' columns for deeppavlov answer based on 'question' and deeppavlov score
         """        
         answers, scores = ([] for i in range(2))
@@ -192,8 +169,8 @@ class HeuristicsFilter(RulebasedFilter):
     def avoid_spare_persons(self, qa_df)-> List[int]:
         """
         Takes df (with definite column names)
-        Removes rows in df where persons in question are not presented in summary (text)
-        or persons in GPT answer are not presented in summary (text)
+        Removes rows in df where persons in generated question are not presented in summary (text)
+        or persons in generated answer are not presented in summary (text)
         Returns list of 'bad' indices
         """    
         pers_indices = []
@@ -218,7 +195,7 @@ class HeuristicsFilter(RulebasedFilter):
         """
         Takes df (with definite column names)
         Finds rows in df where locations in question are not presented in summary (text)
-        or locations in GPT answer are not presented in summary (text)
+        or locations in generated answer are not presented in summary (text)
         Returns list of 'bad' indices
         """
         loc_indices = []
@@ -242,8 +219,8 @@ class HeuristicsFilter(RulebasedFilter):
     def avoid_different_entities(self, qa_df)-> List[int]:
         """
         Takes df (with definite column names)
-        Finds rows in df where entities (of different types) in GPT question are not presented in summary (text)
-        or entities (of different types) in GPT answer are not presented in summary (text)   
+        Finds rows in df where entities (of different types) in generated question are not presented in summary (text)
+        or entities (of different types) in generated answer are not presented in summary (text)   
         Returns list of 'bad' indices
         """ 
         entity_indices = []
@@ -293,7 +270,7 @@ class HeuristicsFilter(RulebasedFilter):
     def match_lemstrings(self, qa_df)-> List[int]:
         """
         Takes pandas dataframe with definite columns
-        Looks for exact lemmatized string match between GPT answer and deeppavlov answer
+        Looks for exact lemmatized string match between generated answer and deeppavlov answer
         Returns list of indices for such rows
         """
         indices_joined = []   
@@ -313,7 +290,7 @@ class HeuristicsFilter(RulebasedFilter):
     def match_lemmas(self, qa_df, lemmas_threshold: int)-> List[int]:
         """
         Takes pandas dataframe with definite columns
-        Looks for intersection of lemmas between GPT answer and deeppavlov answer
+        Looks for intersection of lemmas between generated answer and deeppavlov answer
         Returns list of indices for such rows
         """    
         indices_inters = []
@@ -338,10 +315,10 @@ class HeuristicsFilter(RulebasedFilter):
         """
         Takes pandas dataframe with definite columns
         For each row, ROUGE, METEOR and BLEU metrics are counted for pairs reference-hypothesis:
-        deeppavlov answer - GPT answer,
-        question - GPT answer,
-        text - GPT answer,
-        text - question     
+        deeppavlov answer - generated answer,
+        question - generated answer,
+        text - generated answer,
+        text - generated question     
         Returns list of indices for rows where united metrics scores are higher than thresholds
         This function can be optionally used instead of combination of match lemstrings and match_lemmas.
         All metrics are done for lemmatized strings.
@@ -370,7 +347,7 @@ class HeuristicsFilter(RulebasedFilter):
         for i, row in qa_df.iterrows():
             document = row['summary']
             question = row['question']
-            categories = row['catagory']           
+            categories = row['category']           
             if 'сколько лет' in question or 'Сколько лет' in question:
                 bad_indices.append(i)
             for elem in bad_cat:        
@@ -385,7 +362,7 @@ class HeuristicsFilter(RulebasedFilter):
         Takes list of documents,
         Preliminary filter: removes too short summaries (<50 characters),
         removes summaries with too many term translations in the beginning,
-        Returns list of documents for asking GPT QA
+        Returns list of documents for asking generated QA
         """
         if not text_size:
             text_size = self.text_size
@@ -402,7 +379,7 @@ class HeuristicsFilter(RulebasedFilter):
         Takes pandas dataframe,
         Preliminary filter: removes rows with too short summaries (<50 characters),
         removes rows with summaries with too many term translations in the beginning,
-        Returns pandas datafrale to give it to the existing do_filter (given that we already have df with GPT3 answers or without them)
+        Returns pandas datafrale to give it to the existing do_filter (given that we already have df with generated answers or without them)
         """
         #TODO: REMOVE IT AFTER REFACTORING: PRELIM_FILTER (ABOVE) SHOULD BE INSTEAD OF PRELIM_FILTER_DF
         if not text_size:
@@ -438,16 +415,17 @@ class HeuristicsFilter(RulebasedFilter):
 
     def do_filter(self, qa_df, lemmas_threshold: Optional[int] = None, sim_threshold: Optional[Tuple[float, float]] = None, dp_threshold: Optional[float] = None, sep_keywords: bool = False, metrics: bool = False, additional_checks: bool = False) -> List[TextQA]:
         """
-        :param documents: A list of texts (Wikipedia summaries)
-        :param text_size: Min and max number of words for a a text to be valid.   
-        :param lemmas_threshold: percent of intersections between lists of lemmas for GPT and deeppavlov answers
-        :param sim_threshold: Min and max values for WMD similarity measure between lists of lemmas for GPT and deeppavlov answers
-        :param dp_threshold: Min deeppavlov QA model score            
-        :param lang_filter: To use language filtering or not
-        :param all_keywords: To use only persons and locations, or to use all named entities as keywords
+        Main filtration function
+        :param qa_df: dataframe with wikipedia 'summary' column, generated question ('question') column, generated answer ('answer') column
+        :param lemmas_threshold: percent of intersections between lists of lemmas for generated and deeppavlov answers
+        :param sim_threshold: Min and max values for WMD similarity measure between lists of lemmas for generated and deeppavlov answers
+        :param dp_threshold: Min deeppavlov QA model score (is not useful, in general)           
+        :param sep_keywords: To use only persons and locations, or to use all named entities as keywords (by default)
         :param metrics: To use get_language_metrics instead of combination of match_lemstrings and match_lemmas
         :param additional_checks: To check WMD similarity and deeppavlov QA model score or not
-        :returns: results: A list of dictionaries (for every text: Wikipedia summary, GPT question, GPT answer, deeppavlov answer)
+        :returns: results: dataframe with added columns (for every text: deeppavlov answer ('dp_answer'), lemmatized summary ('summary_lem'), 
+        lemmatized generated question ('question_lem'), lemmatized generated answer ('answer_lem'), deeppavlov lemmatized answer ('dp_answer_lem')
+        The returned dataframe is filtered and should be smaller than the initial dataframe.
         """      
         
         #if not text_size:

@@ -22,4 +22,4 @@ class CheckRussian:
         return lang == self.language
 
     def check_params(self):
-        pass  # FixMe
+        pass  # tofix

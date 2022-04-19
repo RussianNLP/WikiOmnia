@@ -24,7 +24,6 @@ class Worker:
         df['index'] = df.index
         df = df[df['question'] != 'GENERATION_ERROR']
         df = df[df['answer'] != 'GENERATION_ERROR']
-        df.rename(columns={'short_summary': 'summary'}, inplace=True)
         logging.info(df.shape)
         return df
 
